@@ -132,9 +132,8 @@ export function swapCookingMeal(weeks, weekIndex, mealId, selectedCuisines, diet
   if (!newRecipe) return weeks;
 
   const newWeeks = weeks.map((wk, wi) => {
-    if (wi !== weekIndex) return wk;
     return wk.map(m => {
-      if (m.id === mealId) {
+      if (wi === weekIndex && m.id === mealId) {
         return {
           ...m,
           name: newRecipe.name,
@@ -145,7 +144,7 @@ export function swapCookingMeal(weeks, weekIndex, mealId, selectedCuisines, diet
           rating: null,
         };
       }
-      // Update leftover meals that reference this meal
+      // Update leftover slots referencing this meal — may live in any week
       if (m.sourceMealId === mealId) {
         return { ...m, name: `${newRecipe.name} (leftovers)`, cuisine: newRecipe.cuisine };
       }

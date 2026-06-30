@@ -157,6 +157,9 @@ function MealCard({ meal, flatIndex, isLastFlat, onSwap, onRate, onToggleEatingO
       </div>
 
       <p className="meal-name">{meal.name}</p>
+      {meal.crossWeek && (
+        <span className="cross-week-badge">↑ from last week</span>
+      )}
 
       {meal.label === 'Cooking' && (
         <button
@@ -218,6 +221,8 @@ function WeekSection({ weekIndex, meals, allWeeks, onSwap, onRate, onToggleEatin
   const flatTotal = allWeeks.reduce((sum, w) => sum + w.length, 0);
   const flatOffset = allWeeks.slice(0, weekIndex).reduce((sum, w) => sum + w.length, 0);
   const freeSlots = meals.filter(m => m.label === 'Leftovers' && !m.sourceMealId).length;
+  const nextWeekFreeSlots = (allWeeks[weekIndex + 1] ?? []).filter(m => m.label === 'Leftovers' && !m.sourceMealId).length;
+  const hasAvailableSlot = freeSlots + nextWeekFreeSlots > 0;
 
   return (
     <section className="week-section">
@@ -241,7 +246,7 @@ function WeekSection({ weekIndex, meals, allWeeks, onSwap, onRate, onToggleEatin
               onToggleEatingOut={() => onToggleEatingOut(weekIndex, meal.id)}
               onMove={(dir) => onMove(flatIndex, dir)}
               onToggleCookExtra={() => onToggleCookExtra(weekIndex, meal.id)}
-              canCookExtra={freeSlots > 0}
+              canCookExtra={hasAvailableSlot}
               onDelete={() => onDelete(weekIndex, meal.id)}
               onEdit={() => onEditRecipe(weekIndex, meal)}
             />
@@ -431,49 +436,80 @@ export default function App() {
   }, [cuisines, diet]);
 
   const handleDelete = useCallback((weekIndex, mealId) => {
-    setWeeks(prev => prev.map((wk, wi) => {
-      if (wi !== weekIndex) return wk;
-      const meal = wk.find(m => m.id === mealId);
-      if (!meal) return wk;
+    setWeeks(prev => {
+      const meal = prev[weekIndex]?.find(m => m.id === mealId);
+      if (!meal) return prev;
 
       if (meal.label === 'Cooking' && meal.cookExtra) {
-        // Reset the leftover slot that references this meal, then remove
-        return wk
-          .map(m => m.sourceMealId === mealId ? { ...m, sourceMealId: null, name: '', cuisine: '' } : m)
-          .filter(m => m.id !== mealId);
+        // Reset leftover slots in ANY week that reference this meal, then remove it
+        return prev.map((wk, wi) => {
+          const reset = wk.map(m =>
+            m.sourceMealId === mealId
+              ? { ...m, sourceMealId: null, name: '', cuisine: '', crossWeek: false }
+              : m
+          );
+          return wi === weekIndex ? reset.filter(m => m.id !== mealId) : reset;
+        });
       }
       if (meal.label === 'Leftovers' && meal.sourceMealId) {
-        // Unmark cookExtra on the source cooking meal, then remove this slot
-        return wk
-          .map(m => m.id === meal.sourceMealId ? { ...m, cookExtra: false } : m)
-          .filter(m => m.id !== mealId);
+        // Unmark cookExtra on the source meal (may be in a different week), remove this slot
+        return prev.map((wk, wi) => {
+          const unmark = wk.map(m =>
+            m.id === meal.sourceMealId ? { ...m, cookExtra: false } : m
+          );
+          return wi === weekIndex ? unmark.filter(m => m.id !== mealId) : unmark;
+        });
       }
-      return wk.filter(m => m.id !== mealId);
-    }));
+      return prev.map((wk, wi) => wi === weekIndex ? wk.filter(m => m.id !== mealId) : wk);
+    });
   }, []);
 
   const handleToggleCookExtra = useCallback((weekIndex, mealId) => {
-    setWeeks(prev => prev.map((wk, wi) => {
-      if (wi !== weekIndex) return wk;
-      const meal = wk.find(m => m.id === mealId);
-      if (!meal || meal.label !== 'Cooking') return wk;
+    setWeeks(prev => {
+      const meal = prev[weekIndex]?.find(m => m.id === mealId);
+      if (!meal || meal.label !== 'Cooking') return prev;
 
       if (!meal.cookExtra) {
-        const slot = wk.find(m => m.label === 'Leftovers' && !m.sourceMealId);
-        if (!slot) return wk;
-        return wk.map(m => {
-          if (m.id === mealId) return { ...m, cookExtra: true };
-          if (m.id === slot.id) return { ...m, sourceMealId: mealId, name: `${meal.name} (leftovers)`, cuisine: meal.cuisine };
-          return m;
+        // Prefer a free slot in the same week; fall back to next week
+        let slotWeek = -1;
+        let slotId = null;
+
+        const sameSlot = prev[weekIndex]?.find(m => m.label === 'Leftovers' && !m.sourceMealId);
+        if (sameSlot) {
+          slotWeek = weekIndex;
+          slotId = sameSlot.id;
+        } else if (weekIndex + 1 < prev.length) {
+          const nextSlot = prev[weekIndex + 1]?.find(m => m.label === 'Leftovers' && !m.sourceMealId);
+          if (nextSlot) {
+            slotWeek = weekIndex + 1;
+            slotId = nextSlot.id;
+          }
+        }
+
+        if (slotId === null) return prev;
+
+        const crossWeek = slotWeek !== weekIndex;
+
+        return prev.map((wk, wi) => {
+          if (wi === weekIndex) return wk.map(m => m.id === mealId ? { ...m, cookExtra: true } : m);
+          if (wi === slotWeek) return wk.map(m =>
+            m.id === slotId
+              ? { ...m, sourceMealId: mealId, name: `${meal.name} (leftovers)`, cuisine: meal.cuisine, crossWeek }
+              : m
+          );
+          return wk;
         });
       } else {
-        return wk.map(m => {
-          if (m.id === mealId) return { ...m, cookExtra: false };
-          if (m.sourceMealId === mealId) return { ...m, sourceMealId: null, name: '', cuisine: '' };
-          return m;
-        });
+        // Turn off: release the slot in whichever week it lives
+        return prev.map(wk =>
+          wk.map(m => {
+            if (m.id === mealId) return { ...m, cookExtra: false };
+            if (m.sourceMealId === mealId) return { ...m, sourceMealId: null, name: '', cuisine: '', crossWeek: false };
+            return m;
+          })
+        );
       }
-    }));
+    });
   }, []);
 
   const handleRate = useCallback((weekIndex, mealId, rating) => {
@@ -533,14 +569,13 @@ export default function App() {
   }, []);
 
   const handleEditRecipe = useCallback(({ weekIndex, mealId, name, ingredients }) => {
-    setWeeks(prev => prev.map((wk, wi) => {
-      if (wi !== weekIndex) return wk;
-      return wk.map(m => {
+    setWeeks(prev => prev.map(wk =>
+      wk.map(m => {
         if (m.id === mealId) return { ...m, name, ingredients };
         if (m.sourceMealId === mealId) return { ...m, name: `${name} (leftovers)` };
         return m;
-      });
-    }));
+      })
+    ));
   }, []);
 
   return (
