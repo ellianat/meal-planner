@@ -310,6 +310,36 @@ body {
 .hint-text { font-size: 0.78rem; color: var(--text-light); margin-top: 2px; }
 .warning-text { font-size: 0.78rem; color: var(--terracotta); font-weight: 600; }
 
+/* Protein chips */
+.protein-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.protein-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--terracotta-light);
+  border: 1px solid var(--terracotta-mid);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--terracotta-dark);
+}
+
+.protein-qty {
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--terracotta);
+  color: white;
+  border-radius: 99px;
+  padding: 1px 6px;
+}
+
 /* Generate row */
 .generate-row {
   margin-top: 22px;

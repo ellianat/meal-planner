@@ -97,11 +97,26 @@ function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftov
           <input
             type="text"
             className="text-input"
-            placeholder="e.g. chicken thighs, ground beef"
+            placeholder="e.g. 2 packages of chicken thighs, ground beef"
             value={leftoverProteins}
             onChange={e => setLeftoverProteins(e.target.value)}
           />
-          <p className="hint-text">Comma-separated — we'll suggest meals that use these up</p>
+          <p className="hint-text">Comma-separated — include quantities if you like</p>
+          {leftoverProteins.trim() && (
+            <div className="protein-chips">
+              {leftoverProteins.split(',').map(s => s.trim()).filter(Boolean).map((raw, i) => {
+                const m = raw.match(/^(\d+(?:\.\d+)?(?:\s+(?:packages?|packs?|lbs?|pounds?|oz|ounces?|pieces?|bags?|cans?|jars?|portions?|servings?|containers?|kg|g|bunches?))?)(?:\s+of)?\s+(.+)$/i);
+                const qty = m ? m[1].trim() : null;
+                const name = m ? m[2].trim() : raw;
+                return (
+                  <span key={i} className="protein-chip">
+                    {qty && <span className="protein-qty">{qty}</span>}
+                    {name}
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -253,9 +268,8 @@ function MealCard({ meal, flatIndex, isLastFlat, onSwap, onRate, onToggleEatingO
 function WeekSection({ weekIndex, meals, allWeeks, onSwap, onRate, onToggleEatingOut, onMove, onAddRecipe, onToggleCookExtra, onDelete, onEditRecipe }) {
   const flatTotal = allWeeks.reduce((sum, w) => sum + w.length, 0);
   const flatOffset = allWeeks.slice(0, weekIndex).reduce((sum, w) => sum + w.length, 0);
-  const freeSlots = meals.filter(m => m.label === 'Leftovers' && !m.sourceMealId).length;
-  const nextWeekFreeSlots = (allWeeks[weekIndex + 1] ?? []).filter(m => m.label === 'Leftovers' && !m.sourceMealId).length;
-  const hasAvailableSlot = freeSlots + nextWeekFreeSlots > 0;
+  // Always true — cook-extra creates a new leftover slot if no placeholder exists
+  const hasAvailableSlot = true;
 
   return (
     <section className="week-section">
@@ -525,44 +539,59 @@ export default function App() {
       if (!meal || meal.label !== 'Cooking') return prev;
 
       if (!meal.cookExtra) {
-        // Prefer a free slot in the same week; fall back to next week
-        let slotWeek = -1;
-        let slotId = null;
-
+        // 1. Try to claim an existing unassigned placeholder — same week first, then next week.
         const sameSlot = prev[weekIndex]?.find(m => m.label === 'Leftovers' && !m.sourceMealId);
-        if (sameSlot) {
-          slotWeek = weekIndex;
-          slotId = sameSlot.id;
-        } else if (weekIndex + 1 < prev.length) {
-          const nextSlot = prev[weekIndex + 1]?.find(m => m.label === 'Leftovers' && !m.sourceMealId);
-          if (nextSlot) {
-            slotWeek = weekIndex + 1;
-            slotId = nextSlot.id;
-          }
+        const nextSlot = !sameSlot && weekIndex + 1 < prev.length
+          ? prev[weekIndex + 1]?.find(m => m.label === 'Leftovers' && !m.sourceMealId)
+          : null;
+
+        if (sameSlot || nextSlot) {
+          const slotWeek = sameSlot ? weekIndex : weekIndex + 1;
+          const slotId   = (sameSlot ?? nextSlot).id;
+          const crossWeek = slotWeek !== weekIndex;
+          return prev.map((wk, wi) => {
+            if (wi === weekIndex) return wk.map(m => m.id === mealId ? { ...m, cookExtra: true } : m);
+            if (wi === slotWeek)  return wk.map(m =>
+              m.id === slotId
+                ? { ...m, sourceMealId: mealId, name: `${meal.name} (leftovers)`, cuisine: meal.cuisine, crossWeek }
+                : m
+            );
+            return wk;
+          });
         }
 
-        if (slotId === null) return prev;
-
-        const crossWeek = slotWeek !== weekIndex;
-
-        return prev.map((wk, wi) => {
-          if (wi === weekIndex) return wk.map(m => m.id === mealId ? { ...m, cookExtra: true } : m);
-          if (wi === slotWeek) return wk.map(m =>
-            m.id === slotId
-              ? { ...m, sourceMealId: mealId, name: `${meal.name} (leftovers)`, cuisine: meal.cuisine, crossWeek }
-              : m
-          );
-          return wk;
-        });
+        // 2. No placeholder exists — create a new leftover slot and append it to this week.
+        const newSlot = {
+          id: `lv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          name: `${meal.name} (leftovers)`,
+          cuisine: meal.cuisine,
+          label: 'Leftovers',
+          prevLabel: 'Leftovers',
+          ingredients: [],
+          isBatchCooking: false,
+          recipeId: null,
+          sourceMealId: mealId,
+          rating: null,
+          isCustom: false,
+          cookExtra: false,
+          crossWeek: false,
+          dynamicLeftover: true,
+          diets: [],
+        };
+        return prev.map((wk, wi) =>
+          wi !== weekIndex ? wk
+            : [...wk.map(m => m.id === mealId ? { ...m, cookExtra: true } : m), newSlot]
+        );
       } else {
-        // Turn off: release the slot in whichever week it lives
-        return prev.map(wk =>
-          wk.map(m => {
+        // Turn off: delete dynamically created slots; reset pre-existing placeholders.
+        return prev.map(wk => {
+          const withoutDynamic = wk.filter(m => !(m.sourceMealId === mealId && m.dynamicLeftover));
+          return withoutDynamic.map(m => {
             if (m.id === mealId) return { ...m, cookExtra: false };
             if (m.sourceMealId === mealId) return { ...m, sourceMealId: null, name: '', cuisine: '', crossWeek: false };
             return m;
-          })
-        );
+          });
+        });
       }
     });
   }, []);

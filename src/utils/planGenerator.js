@@ -12,10 +12,19 @@ function shuffle(arr) {
   return a;
 }
 
-function recipeMatchesProtein(recipe, proteins) {
-  return proteins.some(p =>
-    recipe.ingredients.some(ing => ing.toLowerCase().includes(p.toLowerCase()))
+// Strip optional leading quantity ("2 packages of", "1 lb", "3") before matching.
+function extractProteinName(entry) {
+  const m = entry.trim().match(
+    /^(\d+(?:\.\d+)?(?:\s+(?:packages?|packs?|lbs?|pounds?|oz|ounces?|pieces?|bags?|cans?|jars?|portions?|servings?|containers?|kg|g|bunches?))?)(?:\s+of)?\s+(.+)$/i
   );
+  return m ? m[2].trim() : entry.trim();
+}
+
+function recipeMatchesProtein(recipe, proteins) {
+  return proteins.some(p => {
+    const name = extractProteinName(p);
+    return recipe.ingredients.some(ing => ing.toLowerCase().includes(name.toLowerCase()));
+  });
 }
 
 function recipeMatchesDiet(recipe, diet) {
