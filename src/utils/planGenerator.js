@@ -37,7 +37,7 @@ function recipeMatchesDiet(recipe, diet) {
   return true;
 }
 
-export function generatePlan({ selectedCuisines, mealsPerWeek, leftoverNights, leftoverProteins, diet }) {
+export function generatePlan({ selectedCuisines, mealsPerWeek, leftoverProteins, diet }) {
   const proteins = leftoverProteins
     .split(',')
     .map(p => p.trim())
@@ -47,9 +47,6 @@ export function generatePlan({ selectedCuisines, mealsPerWeek, leftoverNights, l
     selectedCuisines.includes(r.cuisine) && recipeMatchesDiet(r, diet)
   );
 
-  const cookingCount = Math.max(1, mealsPerWeek - leftoverNights);
-  const actualLeftovers = mealsPerWeek - cookingCount;
-
   const recentIds = new Set();
   const weeks = [];
 
@@ -57,7 +54,7 @@ export function generatePlan({ selectedCuisines, mealsPerWeek, leftoverNights, l
     const selected = [];
 
     let freshPool = pool.filter(r => !recentIds.has(r.id));
-    if (freshPool.length < cookingCount) {
+    if (freshPool.length < mealsPerWeek) {
       recentIds.clear();
       freshPool = [...pool];
     }
@@ -65,28 +62,27 @@ export function generatePlan({ selectedCuisines, mealsPerWeek, leftoverNights, l
     // Inject a protein-match recipe roughly every other week
     if (proteins.length > 0 && w % 2 === 0) {
       const match = freshPool.find(r => recipeMatchesProtein(r, proteins));
-      if (match && selected.length < cookingCount) selected.push(match);
+      if (match && selected.length < mealsPerWeek) selected.push(match);
     }
 
     // Fill remaining slots
     const remaining = shuffle(freshPool.filter(r => !selected.includes(r)));
     for (const r of remaining) {
-      if (selected.length >= cookingCount) break;
+      if (selected.length >= mealsPerWeek) break;
       selected.push(r);
     }
 
     // Last resort: allow repeats
-    if (selected.length < cookingCount) {
+    if (selected.length < mealsPerWeek) {
       for (const r of shuffle(pool)) {
-        if (selected.length >= cookingCount) break;
+        if (selected.length >= mealsPerWeek) break;
         if (!selected.includes(r)) selected.push(r);
       }
     }
 
     selected.forEach(r => recentIds.add(r.id));
 
-    // Build cooking meals — cookExtra is false until the user toggles it
-    const cookingMeals = selected.slice(0, cookingCount).map(r => ({
+    const meals = selected.slice(0, mealsPerWeek).map(r => ({
       id: uid(),
       name: r.name,
       cuisine: r.cuisine,
@@ -102,23 +98,7 @@ export function generatePlan({ selectedCuisines, mealsPerWeek, leftoverNights, l
       diets: r.diets ?? [],
     }));
 
-    // Build unassigned leftover placeholder slots
-    const leftoverSlots = Array.from({ length: actualLeftovers }, () => ({
-      id: uid(),
-      name: '',
-      cuisine: '',
-      label: 'Leftovers',
-      prevLabel: 'Leftovers',
-      ingredients: [],
-      isBatchCooking: false,
-      recipeId: null,
-      sourceMealId: null,
-      rating: null,
-      isCustom: false,
-      cookExtra: false,
-    }));
-
-    weeks.push([...cookingMeals, ...leftoverSlots]);
+    weeks.push(meals);
   }
 
   return weeks;

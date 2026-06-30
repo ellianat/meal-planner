@@ -15,7 +15,7 @@ const CATEGORY_ICONS = { Protein: '🥩', Produce: '🥦', Pantry: '🫙', Other
 
 // ─── Settings panel ──────────────────────────────────────────────────────────
 
-function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftoverNights, setLeftoverNights, leftoverProteins, setLeftoverProteins, diet, setDiet, onGenerate, onReset, hasPlan }) {
+function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftoverProteins, setLeftoverProteins, diet, setDiet, onGenerate, onReset, hasPlan }) {
   const toggleCuisine = (c) => {
     setCuisines(prev =>
       prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]
@@ -59,25 +59,6 @@ function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftov
                 {n}
               </button>
             ))}
-          </div>
-        </div>
-
-        <div className="setting-group">
-          <label className="setting-label">
-            Leftover nights per week
-            <span className="setting-value">{leftoverNights}</span>
-          </label>
-          <input
-            type="range"
-            min="0"
-            max={Math.min(3, mealsPerWeek - 1)}
-            value={Math.min(leftoverNights, mealsPerWeek - 1)}
-            onChange={e => setLeftoverNights(Number(e.target.value))}
-            className="slider"
-          />
-          <div className="slider-labels">
-            <span>0</span>
-            <span>{Math.min(3, mealsPerWeek - 1)}</span>
           </div>
         </div>
 
@@ -461,7 +442,6 @@ function RecipeModal({ defaultWeek, totalWeeks, onAdd, onEdit, onClose, editMeal
 export default function App() {
   const [cuisines, setCuisines] = useState([...CUISINES]);
   const [mealsPerWeek, setMealsPerWeek] = useState(5);
-  const [leftoverNights, setLeftoverNights] = useState(1);
   const [leftoverProteins, setLeftoverProteins] = useState('');
   const [diet, setDiet] = useState('none');
 
@@ -489,12 +469,11 @@ export default function App() {
     const plan = generatePlan({
       selectedCuisines: cuisines,
       mealsPerWeek,
-      leftoverNights: Math.min(leftoverNights, mealsPerWeek - 1),
       leftoverProteins,
       diet,
     });
     setWeeks(plan);
-  }, [cuisines, mealsPerWeek, leftoverNights, leftoverProteins, diet]);
+  }, [cuisines, mealsPerWeek, leftoverProteins, diet]);
 
   const handleSwap = useCallback((weekIndex, mealId) => {
     setWeeks(prev => {
@@ -654,8 +633,6 @@ export default function App() {
           setCuisines={setCuisines}
           mealsPerWeek={mealsPerWeek}
           setMealsPerWeek={setMealsPerWeek}
-          leftoverNights={leftoverNights}
-          setLeftoverNights={setLeftoverNights}
           leftoverProteins={leftoverProteins}
           setLeftoverProteins={setLeftoverProteins}
           diet={diet}
