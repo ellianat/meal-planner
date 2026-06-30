@@ -146,6 +146,7 @@ body {
 /* Segmented control */
 .seg-control {
   display: inline-flex;
+  align-self: flex-start;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
@@ -410,6 +411,8 @@ body {
 .icon-btn.active-eat { color: var(--yellow); background: #fef3c7; }
 .icon-btn.delete-btn { color: var(--text-light); font-size: 12px; }
 .icon-btn.delete-btn:hover { color: var(--red); background: #fee2e2; }
+.icon-btn.edit-btn { color: var(--text-light); font-size: 14px; }
+.icon-btn.edit-btn:hover { color: var(--primary); background: #eff6ff; }
 
 /* Cook extra toggle */
 .cook-extra-btn {

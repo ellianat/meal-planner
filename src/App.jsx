@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { CUISINES, ALL_RECIPES, categorizeIngredient } from './data/recipes';
 import { generatePlan, swapCookingMeal } from './utils/planGenerator';
 
@@ -9,7 +9,7 @@ const customId = () => `custom-${++_customSeed}-${Date.now()}`;
 
 // ─── Settings panel ──────────────────────────────────────────────────────────
 
-function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftoverNights, setLeftoverNights, leftoverProteins, setLeftoverProteins, onGenerate }) {
+function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftoverNights, setLeftoverNights, leftoverProteins, setLeftoverProteins, diet, setDiet, onGenerate }) {
   const toggleCuisine = (c) => {
     setCuisines(prev =>
       prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]
@@ -76,6 +76,17 @@ function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftov
         </div>
 
         <div className="setting-group">
+          <label className="setting-label">Diet</label>
+          <select className="select-input" value={diet} onChange={e => setDiet(e.target.value)}>
+            <option value="none">No restriction</option>
+            <option value="vegetarian">Vegetarian</option>
+            <option value="vegan">Vegan</option>
+            <option value="pescatarian">Pescatarian</option>
+            <option value="gluten-free">Gluten-Free</option>
+          </select>
+        </div>
+
+        <div className="setting-group">
           <label className="setting-label">Proteins on hand</label>
           <input
             type="text"
@@ -101,7 +112,7 @@ function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftov
 
 // ─── Meal card ───────────────────────────────────────────────────────────────
 
-function MealCard({ meal, flatIndex, isLastFlat, onSwap, onRate, onToggleEatingOut, onMove, onToggleCookExtra, canCookExtra, onDelete }) {
+function MealCard({ meal, flatIndex, isLastFlat, onSwap, onRate, onToggleEatingOut, onMove, onToggleCookExtra, canCookExtra, onDelete, onEdit }) {
   const isFirst = flatIndex === 0;
   const isLast = isLastFlat;
 
@@ -138,6 +149,9 @@ function MealCard({ meal, flatIndex, isLastFlat, onSwap, onRate, onToggleEatingO
         <span className={`meal-label ${labelClass}`}>{meal.label}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {meal.cuisine && <span className="meal-cuisine">{meal.cuisine}</span>}
+          {meal.isCustom && (
+            <button className="icon-btn edit-btn" onClick={onEdit} title="Edit recipe" aria-label="Edit">✎</button>
+          )}
           <button className="icon-btn delete-btn" onClick={onDelete} title="Remove meal" aria-label="Delete">✕</button>
         </div>
       </div>
@@ -200,7 +214,7 @@ function MealCard({ meal, flatIndex, isLastFlat, onSwap, onRate, onToggleEatingO
 
 // ─── Week section ─────────────────────────────────────────────────────────────
 
-function WeekSection({ weekIndex, meals, allWeeks, onSwap, onRate, onToggleEatingOut, onMove, onAddRecipe, onToggleCookExtra, onDelete }) {
+function WeekSection({ weekIndex, meals, allWeeks, onSwap, onRate, onToggleEatingOut, onMove, onAddRecipe, onToggleCookExtra, onDelete, onEditRecipe }) {
   const flatTotal = allWeeks.reduce((sum, w) => sum + w.length, 0);
   const flatOffset = allWeeks.slice(0, weekIndex).reduce((sum, w) => sum + w.length, 0);
   const freeSlots = meals.filter(m => m.label === 'Leftovers' && !m.sourceMealId).length;
@@ -229,6 +243,7 @@ function WeekSection({ weekIndex, meals, allWeeks, onSwap, onRate, onToggleEatin
               onToggleCookExtra={() => onToggleCookExtra(weekIndex, meal.id)}
               canCookExtra={freeSlots > 0}
               onDelete={() => onDelete(weekIndex, meal.id)}
+              onEdit={() => onEditRecipe(weekIndex, meal)}
             />
           );
         })}
@@ -278,32 +293,41 @@ function ShoppingList({ weeks }) {
   );
 }
 
-// ─── Add recipe modal ─────────────────────────────────────────────────────────
+// ─── Recipe modal (add + edit) ────────────────────────────────────────────────
 
-function AddRecipeModal({ defaultWeek, totalWeeks, onAdd, onClose }) {
-  const [name, setName] = useState('');
+function RecipeModal({ defaultWeek, totalWeeks, onAdd, onEdit, onClose, editMeal }) {
+  const isEdit = !!editMeal;
+  const [name, setName] = useState(editMeal?.name ?? '');
   const [week, setWeek] = useState(defaultWeek);
-  const [ingredients, setIngredients] = useState('');
+  const [ingredients, setIngredients] = useState(
+    editMeal?.ingredients?.join(', ') ?? ''
+  );
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onAdd({
-      weekIndex: week,
-      meal: {
-        id: customId(),
-        name: name.trim(),
-        cuisine: 'Custom',
-        label: 'Cooking',
-        prevLabel: 'Cooking',
-        ingredients: ingredients.split(',').map(s => s.trim()).filter(Boolean),
-        isBatchCooking: false,
-        recipeId: null,
-        sourceMealId: null,
-        rating: null,
-        isCustom: true,
-      }
-    });
+    const parsedIngredients = ingredients.split(',').map(s => s.trim()).filter(Boolean);
+    if (isEdit) {
+      onEdit({ name: name.trim(), ingredients: parsedIngredients });
+    } else {
+      onAdd({
+        weekIndex: week,
+        meal: {
+          id: customId(),
+          name: name.trim(),
+          cuisine: 'Custom',
+          label: 'Cooking',
+          prevLabel: 'Cooking',
+          ingredients: parsedIngredients,
+          isBatchCooking: false,
+          recipeId: null,
+          sourceMealId: null,
+          rating: null,
+          isCustom: true,
+          cookExtra: false,
+        }
+      });
+    }
     onClose();
   };
 
@@ -311,7 +335,7 @@ function AddRecipeModal({ defaultWeek, totalWeeks, onAdd, onClose }) {
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <div className="modal-header">
-          <h2>Add Custom Recipe</h2>
+          <h2>{isEdit ? 'Edit Recipe' : 'Add Custom Recipe'}</h2>
           <button className="icon-btn close-btn" onClick={onClose} aria-label="Close">✕</button>
         </div>
         <form onSubmit={handleSubmit}>
@@ -326,14 +350,16 @@ function AddRecipeModal({ defaultWeek, totalWeeks, onAdd, onClose }) {
               autoFocus
             />
           </div>
-          <div className="form-group">
-            <label>Add to Week</label>
-            <select className="select-input" value={week} onChange={e => setWeek(Number(e.target.value))}>
-              {Array.from({ length: totalWeeks }, (_, i) => (
-                <option key={i} value={i}>Week {i + 1}</option>
-              ))}
-            </select>
-          </div>
+          {!isEdit && (
+            <div className="form-group">
+              <label>Add to Week</label>
+              <select className="select-input" value={week} onChange={e => setWeek(Number(e.target.value))}>
+                {Array.from({ length: totalWeeks }, (_, i) => (
+                  <option key={i} value={i}>Week {i + 1}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="form-group">
             <label>Ingredients (comma-separated)</label>
             <textarea
@@ -346,7 +372,9 @@ function AddRecipeModal({ defaultWeek, totalWeeks, onAdd, onClose }) {
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={!name.trim()}>Add to Plan</button>
+            <button type="submit" className="btn btn-primary" disabled={!name.trim()}>
+              {isEdit ? 'Save Changes' : 'Add to Plan'}
+            </button>
           </div>
         </form>
       </div>
@@ -361,9 +389,27 @@ export default function App() {
   const [mealsPerWeek, setMealsPerWeek] = useState(5);
   const [leftoverNights, setLeftoverNights] = useState(1);
   const [leftoverProteins, setLeftoverProteins] = useState('');
+  const [diet, setDiet] = useState('none');
 
-  const [weeks, setWeeks] = useState(null);
-  const [addRecipeModal, setAddRecipeModal] = useState(null); // { weekIndex } | null
+  const [weeks, setWeeks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mealplanner_weeks');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // { mode: 'add', weekIndex } | { mode: 'edit', weekIndex, mealId, meal } | null
+  const [recipeModal, setRecipeModal] = useState(null);
+
+  useEffect(() => {
+    if (weeks) {
+      localStorage.setItem('mealplanner_weeks', JSON.stringify(weeks));
+    } else {
+      localStorage.removeItem('mealplanner_weeks');
+    }
+  }, [weeks]);
 
   const handleGenerate = useCallback(() => {
     const plan = generatePlan({
@@ -371,17 +417,18 @@ export default function App() {
       mealsPerWeek,
       leftoverNights: Math.min(leftoverNights, mealsPerWeek - 1),
       leftoverProteins,
+      diet,
     });
     setWeeks(plan);
-  }, [cuisines, mealsPerWeek, leftoverNights, leftoverProteins]);
+  }, [cuisines, mealsPerWeek, leftoverNights, leftoverProteins, diet]);
 
   const handleSwap = useCallback((weekIndex, mealId) => {
     setWeeks(prev => {
       const meal = prev[weekIndex].find(m => m.id === mealId);
       if (!meal || meal.label === 'Leftovers') return prev;
-      return swapCookingMeal(prev, weekIndex, mealId, cuisines);
+      return swapCookingMeal(prev, weekIndex, mealId, cuisines, diet);
     });
-  }, [cuisines]);
+  }, [cuisines, diet]);
 
   const handleDelete = useCallback((weekIndex, mealId) => {
     setWeeks(prev => prev.map((wk, wi) => {
@@ -430,11 +477,19 @@ export default function App() {
   }, []);
 
   const handleRate = useCallback((weekIndex, mealId, rating) => {
+    if (rating === 'down') {
+      setWeeks(prev => {
+        const meal = prev[weekIndex]?.find(m => m.id === mealId);
+        if (!meal || meal.label === 'Leftovers') return prev;
+        return swapCookingMeal(prev, weekIndex, mealId, cuisines, diet);
+      });
+      return;
+    }
     setWeeks(prev => prev.map((wk, wi) =>
       wi !== weekIndex ? wk :
         wk.map(m => m.id === mealId ? { ...m, rating } : m)
     ));
-  }, []);
+  }, [cuisines, diet]);
 
   const handleToggleEatingOut = useCallback((weekIndex, mealId) => {
     setWeeks(prev => prev.map((wk, wi) =>
@@ -477,6 +532,17 @@ export default function App() {
     ));
   }, []);
 
+  const handleEditRecipe = useCallback(({ weekIndex, mealId, name, ingredients }) => {
+    setWeeks(prev => prev.map((wk, wi) => {
+      if (wi !== weekIndex) return wk;
+      return wk.map(m => {
+        if (m.id === mealId) return { ...m, name, ingredients };
+        if (m.sourceMealId === mealId) return { ...m, name: `${name} (leftovers)` };
+        return m;
+      });
+    }));
+  }, []);
+
   return (
     <div className="app">
       <header className="app-header">
@@ -498,6 +564,8 @@ export default function App() {
           setLeftoverNights={setLeftoverNights}
           leftoverProteins={leftoverProteins}
           setLeftoverProteins={setLeftoverProteins}
+          diet={diet}
+          setDiet={setDiet}
           onGenerate={handleGenerate}
         />
 
@@ -514,9 +582,10 @@ export default function App() {
                   onRate={handleRate}
                   onToggleEatingOut={handleToggleEatingOut}
                   onMove={handleMove}
-                  onAddRecipe={(wi) => setAddRecipeModal({ weekIndex: wi })}
+                  onAddRecipe={(wi) => setRecipeModal({ mode: 'add', weekIndex: wi })}
                   onToggleCookExtra={handleToggleCookExtra}
                   onDelete={handleDelete}
+                  onEditRecipe={(wi, meal) => setRecipeModal({ mode: 'edit', weekIndex: wi, mealId: meal.id, meal })}
                 />
               ))}
             </div>
@@ -530,12 +599,16 @@ export default function App() {
         )}
       </main>
 
-      {addRecipeModal && (
-        <AddRecipeModal
-          defaultWeek={addRecipeModal.weekIndex}
+      {recipeModal && (
+        <RecipeModal
+          defaultWeek={recipeModal.weekIndex}
           totalWeeks={weeks ? weeks.length : 4}
+          editMeal={recipeModal.mode === 'edit' ? recipeModal.meal : null}
           onAdd={handleAddRecipe}
-          onClose={() => setAddRecipeModal(null)}
+          onEdit={({ name, ingredients }) =>
+            handleEditRecipe({ weekIndex: recipeModal.weekIndex, mealId: recipeModal.mealId, name, ingredients })
+          }
+          onClose={() => setRecipeModal(null)}
         />
       )}
     </div>

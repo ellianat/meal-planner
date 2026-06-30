@@ -18,13 +18,25 @@ function recipeMatchesProtein(recipe, proteins) {
   );
 }
 
-export function generatePlan({ selectedCuisines, mealsPerWeek, leftoverNights, leftoverProteins }) {
+function recipeMatchesDiet(recipe, diet) {
+  if (!diet || diet === 'none') return true;
+  const d = recipe.diets ?? [];
+  if (diet === 'vegan')       return d.includes('vegan');
+  if (diet === 'vegetarian')  return d.includes('vegan') || d.includes('vegetarian');
+  if (diet === 'pescatarian') return d.includes('vegan') || d.includes('vegetarian') || d.includes('pescatarian');
+  if (diet === 'gluten-free') return d.includes('gluten-free');
+  return true;
+}
+
+export function generatePlan({ selectedCuisines, mealsPerWeek, leftoverNights, leftoverProteins, diet }) {
   const proteins = leftoverProteins
     .split(',')
     .map(p => p.trim())
     .filter(Boolean);
 
-  const pool = ALL_RECIPES.filter(r => selectedCuisines.includes(r.cuisine));
+  const pool = ALL_RECIPES.filter(r =>
+    selectedCuisines.includes(r.cuisine) && recipeMatchesDiet(r, diet)
+  );
 
   const cookingCount = Math.max(1, mealsPerWeek - leftoverNights);
   const actualLeftovers = mealsPerWeek - cookingCount;
@@ -103,7 +115,7 @@ export function generatePlan({ selectedCuisines, mealsPerWeek, leftoverNights, l
 }
 
 // Swap a cooking meal in a week, keeping leftover references consistent
-export function swapCookingMeal(weeks, weekIndex, mealId, selectedCuisines) {
+export function swapCookingMeal(weeks, weekIndex, mealId, selectedCuisines, diet) {
   const week = weeks[weekIndex];
   const mealIdx = week.findIndex(m => m.id === mealId);
   if (mealIdx === -1) return weeks;
@@ -111,10 +123,11 @@ export function swapCookingMeal(weeks, weekIndex, mealId, selectedCuisines) {
   const currentMeal = week[mealIdx];
   const usedIds = new Set(week.map(m => m.recipeId).filter(Boolean));
 
-  const pool = ALL_RECIPES.filter(
-    r => selectedCuisines.includes(r.cuisine) && !usedIds.has(r.id)
+  const eligible = ALL_RECIPES.filter(r =>
+    selectedCuisines.includes(r.cuisine) && recipeMatchesDiet(r, diet)
   );
-  const candidates = pool.length > 0 ? pool : ALL_RECIPES.filter(r => selectedCuisines.includes(r.cuisine));
+  const pool = eligible.filter(r => !usedIds.has(r.id));
+  const candidates = pool.length > 0 ? pool : eligible;
   const newRecipe = shuffle(candidates)[0];
   if (!newRecipe) return weeks;
 
@@ -129,6 +142,7 @@ export function swapCookingMeal(weeks, weekIndex, mealId, selectedCuisines) {
           ingredients: [...newRecipe.ingredients],
           isBatchCooking: newRecipe.isBatchCooking,
           recipeId: newRecipe.id,
+          rating: null,
         };
       }
       // Update leftover meals that reference this meal
