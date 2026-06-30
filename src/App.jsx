@@ -156,7 +156,19 @@ function MealCard({ meal, flatIndex, isLastFlat, onSwap, onRate, onToggleEatingO
         </div>
       </div>
 
-      <p className="meal-name">{meal.name}</p>
+      <div className="meal-name-row">
+        <p className="meal-name">{meal.name}</p>
+        {meal.label === 'Cooking' && (
+          <a
+            className="recipe-search-link"
+            href={`https://www.google.com/search?q=${encodeURIComponent(meal.name + ' recipe')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Search "${meal.name} recipe" on Google`}
+            aria-label="Find recipe"
+          >↗</a>
+        )}
+      </div>
       {meal.crossWeek && (
         <span className="cross-week-badge">↑ from last week</span>
       )}
