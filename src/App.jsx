@@ -510,15 +510,10 @@ export default function App() {
       if (!meal) return prev;
 
       if (meal.label === 'Cooking' && meal.cookExtra) {
-        // Reset leftover slots in ANY week that reference this meal, then remove it
-        return prev.map((wk, wi) => {
-          const reset = wk.map(m =>
-            m.sourceMealId === mealId
-              ? { ...m, sourceMealId: null, name: '', cuisine: '', crossWeek: false }
-              : m
-          );
-          return wi === weekIndex ? reset.filter(m => m.id !== mealId) : reset;
-        });
+        // Delete the cooking meal AND any leftover slots that reference it
+        return prev.map(wk =>
+          wk.filter(m => m.id !== mealId && m.sourceMealId !== mealId)
+        );
       }
       if (meal.label === 'Leftovers' && meal.sourceMealId) {
         // Unmark cookExtra on the source meal (may be in a different week), remove this slot
@@ -535,32 +530,15 @@ export default function App() {
 
   const handleToggleCookExtra = useCallback((weekIndex, mealId) => {
     setWeeks(prev => {
-      const meal = prev[weekIndex]?.find(m => m.id === mealId);
-      if (!meal || meal.label !== 'Cooking') return prev;
+      const week = prev[weekIndex];
+      if (!week) return prev;
+      const mealIdx = week.findIndex(m => m.id === mealId);
+      if (mealIdx === -1) return prev;
+      const meal = week[mealIdx];
+      if (meal.label !== 'Cooking') return prev;
 
       if (!meal.cookExtra) {
-        // 1. Try to claim an existing unassigned placeholder — same week first, then next week.
-        const sameSlot = prev[weekIndex]?.find(m => m.label === 'Leftovers' && !m.sourceMealId);
-        const nextSlot = !sameSlot && weekIndex + 1 < prev.length
-          ? prev[weekIndex + 1]?.find(m => m.label === 'Leftovers' && !m.sourceMealId)
-          : null;
-
-        if (sameSlot || nextSlot) {
-          const slotWeek = sameSlot ? weekIndex : weekIndex + 1;
-          const slotId   = (sameSlot ?? nextSlot).id;
-          const crossWeek = slotWeek !== weekIndex;
-          return prev.map((wk, wi) => {
-            if (wi === weekIndex) return wk.map(m => m.id === mealId ? { ...m, cookExtra: true } : m);
-            if (wi === slotWeek)  return wk.map(m =>
-              m.id === slotId
-                ? { ...m, sourceMealId: mealId, name: `${meal.name} (leftovers)`, cuisine: meal.cuisine, crossWeek }
-                : m
-            );
-            return wk;
-          });
-        }
-
-        // 2. No placeholder exists — create a new leftover slot and append it to this week.
+        // Insert a new leftover card immediately after this cooking meal in the same week.
         const newSlot = {
           id: `lv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           name: `${meal.name} (leftovers)`,
@@ -575,23 +553,20 @@ export default function App() {
           isCustom: false,
           cookExtra: false,
           crossWeek: false,
-          dynamicLeftover: true,
           diets: [],
         };
-        return prev.map((wk, wi) =>
-          wi !== weekIndex ? wk
-            : [...wk.map(m => m.id === mealId ? { ...m, cookExtra: true } : m), newSlot]
-        );
-      } else {
-        // Turn off: delete dynamically created slots; reset pre-existing placeholders.
-        return prev.map(wk => {
-          const withoutDynamic = wk.filter(m => !(m.sourceMealId === mealId && m.dynamicLeftover));
-          return withoutDynamic.map(m => {
-            if (m.id === mealId) return { ...m, cookExtra: false };
-            if (m.sourceMealId === mealId) return { ...m, sourceMealId: null, name: '', cuisine: '', crossWeek: false };
-            return m;
-          });
+        return prev.map((wk, wi) => {
+          if (wi !== weekIndex) return wk;
+          const updated = wk.map(m => m.id === mealId ? { ...m, cookExtra: true } : m);
+          return [...updated.slice(0, mealIdx + 1), newSlot, ...updated.slice(mealIdx + 1)];
         });
+      } else {
+        // Remove the leftover card(s) linked to this meal and turn the toggle off.
+        return prev.map(wk =>
+          wk
+            .filter(m => m.sourceMealId !== mealId)
+            .map(m => m.id === mealId ? { ...m, cookExtra: false } : m)
+        );
       }
     });
   }, []);
