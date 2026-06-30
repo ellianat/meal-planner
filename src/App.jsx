@@ -9,7 +9,7 @@ const customId = () => `custom-${++_customSeed}-${Date.now()}`;
 
 // ─── Settings panel ──────────────────────────────────────────────────────────
 
-function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftoverNights, setLeftoverNights, leftoverProteins, setLeftoverProteins, diet, setDiet, onGenerate }) {
+function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftoverNights, setLeftoverNights, leftoverProteins, setLeftoverProteins, diet, setDiet, onGenerate, onReset, hasPlan }) {
   const toggleCuisine = (c) => {
     setCuisines(prev =>
       prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]
@@ -99,13 +99,20 @@ function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftov
         </div>
       </div>
 
-      <button
-        className="btn btn-primary btn-generate"
-        onClick={onGenerate}
-        disabled={cuisines.length === 0}
-      >
-        Generate 4-Week Plan
-      </button>
+      <div className="generate-row">
+        <button
+          className="btn btn-primary btn-generate"
+          onClick={onGenerate}
+          disabled={cuisines.length === 0}
+        >
+          Generate 4-Week Plan
+        </button>
+        {hasPlan && (
+          <button className="btn btn-secondary btn-reset" onClick={onReset}>
+            Reset plan
+          </button>
+        )}
+      </div>
     </section>
   );
 }
@@ -272,6 +279,7 @@ function WeekSection({ weekIndex, meals, allWeeks, onSwap, onRate, onToggleEatin
 // ─── Shopping list ────────────────────────────────────────────────────────────
 
 function ShoppingList({ weeks }) {
+  const [copied, setCopied] = useState(false);
   const byCategory = { Protein: new Set(), Produce: new Set(), Pantry: new Set(), Other: new Set() };
 
   for (const week of weeks) {
@@ -286,12 +294,33 @@ function ShoppingList({ weeks }) {
 
   const hasItems = Object.values(byCategory).some(s => s.size > 0);
 
+  const handleCopy = () => {
+    const lines = ['Shopping List', ''];
+    for (const [cat, items] of Object.entries(byCategory)) {
+      if (items.size === 0) continue;
+      lines.push(cat);
+      for (const ing of [...items].sort()) lines.push(`- ${ing}`);
+      lines.push('');
+    }
+    navigator.clipboard.writeText(lines.join('\n').trimEnd()).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   if (!hasItems) return null;
 
   return (
     <section className="shopping-list">
-      <h2>Shopping List</h2>
-      <p className="hint-text">Based on cooking nights only — leftovers and eating-out meals excluded.</p>
+      <div className="shopping-list-header">
+        <div>
+          <h2>Shopping List</h2>
+          <p className="hint-text">Based on cooking nights only — leftovers and eating-out meals excluded.</p>
+        </div>
+        <button className="btn btn-secondary btn-sm" onClick={handleCopy}>
+          {copied ? '✓ Copied!' : 'Copy list'}
+        </button>
+      </div>
       <div className="shopping-grid">
         {Object.entries(byCategory).map(([cat, items]) =>
           items.size > 0 ? (
@@ -614,6 +643,8 @@ export default function App() {
           diet={diet}
           setDiet={setDiet}
           onGenerate={handleGenerate}
+          onReset={() => setWeeks(null)}
+          hasPlan={weeks !== null}
         />
 
         {weeks ? (

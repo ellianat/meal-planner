@@ -280,11 +280,21 @@ body {
 
 .btn-sm { padding: 5px 12px; font-size: 13px; }
 
+.generate-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .btn-generate {
-  width: 100%;
+  flex: 1;
   padding: 12px;
   font-size: 15px;
   font-weight: 600;
+}
+
+.btn-reset {
+  white-space: nowrap;
 }
 
 /* ─── Week section ──────────────────────────────────────────────────────────── */
@@ -501,13 +511,21 @@ body {
   margin-top: 24px;
 }
 
+.shopping-list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
 .shopping-list h2 {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 4px;
 }
 
-.shopping-list .hint-text { margin-bottom: 20px; }
+.shopping-list .hint-text { margin-bottom: 0; }
 
 .shopping-grid {
   display: grid;
