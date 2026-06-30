@@ -1,5 +1,7 @@
 # Meal Planner
 
+**[Live demo →](https://meal-planner-taupe-gamma.vercel.app)**
+
 A 4-week dinner plan generator built with React + Vite. Pick your cuisines, set how many nights you cook, and get a full plan with a shopping list in one click.
 
 ## Features
