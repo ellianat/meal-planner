@@ -7,6 +7,12 @@ import { generatePlan, swapCookingMeal } from './utils/planGenerator';
 let _customSeed = 0;
 const customId = () => `custom-${++_customSeed}-${Date.now()}`;
 
+const CUISINE_EMOJI = { Italian: '🍝', Asian: '🥢', Mexican: '🌮', Mediterranean: '🫒', American: '🍔' };
+const LABEL_EMOJI = { Cooking: '🍳', Leftovers: '🫙', 'Eating out': '🍴' };
+const DIET_LABELS = { vegan: '🌱 Vegan', vegetarian: '🌿 Vegetarian', pescatarian: '🐟 Pescatarian', 'gluten-free': '🌾 Gluten-free' };
+const DIET_CLASS = { vegan: 'vegan', vegetarian: 'vegetarian', pescatarian: 'pescatarian', 'gluten-free': 'glutenfree' };
+const CATEGORY_ICONS = { Protein: '🥩', Produce: '🥦', Pantry: '🫙', Other: '🧀' };
+
 // ─── Settings panel ──────────────────────────────────────────────────────────
 
 function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftoverNights, setLeftoverNights, leftoverProteins, setLeftoverProteins, diet, setDiet, onGenerate, onReset, hasPlan }) {
@@ -32,7 +38,7 @@ function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftov
                   checked={cuisines.includes(c)}
                   onChange={() => toggleCuisine(c)}
                 />
-                {c}
+                {CUISINE_EMOJI[c]} {c}
               </label>
             ))}
           </div>
@@ -134,7 +140,7 @@ function MealCard({ meal, flatIndex, isLastFlat, onSwap, onRate, onToggleEatingO
     return (
       <div className="meal-card leftover-unassigned">
         <div className="meal-card-header">
-          <span className={`meal-label ${labelClass}`}>Leftovers</span>
+          <span className={`meal-label ${labelClass}`}>🫙 Leftovers</span>
           <button className="icon-btn delete-btn" onClick={onDelete} title="Remove this night" aria-label="Delete">✕</button>
         </div>
         <p className="unassigned-hint">
@@ -151,11 +157,11 @@ function MealCard({ meal, flatIndex, isLastFlat, onSwap, onRate, onToggleEatingO
   }
 
   return (
-    <div className={`meal-card ${meal.label === 'Eating out' ? 'eating-out' : ''}`}>
+    <div className={`meal-card${meal.label === 'Eating out' ? ' eating-out' : ''}${meal.label === 'Leftovers' ? ' card-leftovers' : ''}`}>
       <div className="meal-card-header">
-        <span className={`meal-label ${labelClass}`}>{meal.label}</span>
+        <span className={`meal-label ${labelClass}`}>{LABEL_EMOJI[meal.label]} {meal.label}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {meal.cuisine && <span className="meal-cuisine">{meal.cuisine}</span>}
+          {meal.cuisine && <span className="meal-cuisine">{CUISINE_EMOJI[meal.cuisine] || ''} {meal.cuisine}</span>}
           {meal.isCustom && (
             <button className="icon-btn edit-btn" onClick={onEdit} title="Edit recipe" aria-label="Edit">✎</button>
           )}
@@ -189,6 +195,14 @@ function MealCard({ meal, flatIndex, isLastFlat, onSwap, onRate, onToggleEatingO
         >
           {meal.cookExtra ? '✓ Cooking extra' : '+ Cook extra for leftovers'}
         </button>
+      )}
+
+      {meal.diets && meal.diets.length > 0 && (
+        <div className="diet-badges">
+          {meal.diets.map(d => (
+            <span key={d} className={`diet-badge diet-badge-${DIET_CLASS[d]}`}>{DIET_LABELS[d]}</span>
+          ))}
+        </div>
       )}
 
       <div className="meal-actions">
@@ -325,7 +339,7 @@ function ShoppingList({ weeks }) {
         {Object.entries(byCategory).map(([cat, items]) =>
           items.size > 0 ? (
             <div key={cat} className="shopping-category">
-              <h3 className="category-title">{cat}</h3>
+              <h3 className="category-title">{CATEGORY_ICONS[cat]} {cat}</h3>
               <ul>
                 {[...items].sort().map(ing => (
                   <li key={ing}>{ing}</li>
@@ -624,8 +638,8 @@ export default function App() {
       <header className="app-header">
         <div className="header-inner">
           <div>
-            <h1>Meal Planner</h1>
-            <p className="tagline">4 weeks of dinners, planned in seconds</p>
+            <h1>🥘 Meal Planner</h1>
+            <p className="tagline">Four weeks of home-cooked dinners, planned in seconds</p>
           </div>
         </div>
       </header>
@@ -671,8 +685,8 @@ export default function App() {
           </>
         ) : (
           <div className="empty-state">
-            <div className="empty-icon">📅</div>
-            <p>Configure your settings above and click <strong>Generate 4-Week Plan</strong> to get started.</p>
+            <div className="empty-icon">🍽️</div>
+            <p>Configure your preferences above and click <strong>Generate 4-Week Plan</strong> to get cooking.</p>
           </div>
         )}
       </main>

@@ -90,6 +90,7 @@ export function generatePlan({ selectedCuisines, mealsPerWeek, leftoverNights, l
       rating: null,
       isCustom: false,
       cookExtra: false,
+      diets: r.diets ?? [],
     }));
 
     // Build unassigned leftover placeholder slots
