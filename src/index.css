@@ -408,6 +408,56 @@ body {
 .icon-btn.active-up { color: var(--green); background: #dcfce7; }
 .icon-btn.active-down { color: var(--red); background: #fee2e2; }
 .icon-btn.active-eat { color: var(--yellow); background: #fef3c7; }
+.icon-btn.delete-btn { color: var(--text-light); font-size: 12px; }
+.icon-btn.delete-btn:hover { color: var(--red); background: #fee2e2; }
+
+/* Cook extra toggle */
+.cook-extra-btn {
+  width: 100%;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font);
+  text-align: left;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.cook-extra-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: #eff6ff;
+}
+
+.cook-extra-btn.active {
+  border-style: solid;
+  border-color: var(--green);
+  background: #f0fdf4;
+  color: var(--green);
+}
+
+.cook-extra-btn.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Unassigned leftover slot */
+.leftover-unassigned {
+  border-style: dashed;
+  background: var(--bg);
+  opacity: 0.75;
+}
+
+.unassigned-hint {
+  font-size: 12px;
+  color: var(--text-light);
+  line-height: 1.4;
+  flex: 1;
+}
 
 /* ─── Shopping list ──────────────────────────────────────────────────────────── */
 .shopping-list {

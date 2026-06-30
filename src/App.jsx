@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { CUISINES, ALL_RECIPES, categorizeIngredient } from './data/recipes';
-import { generatePlan, swapCookingMeal, swapLeftoverMeal } from './utils/planGenerator';
+import { generatePlan, swapCookingMeal } from './utils/planGenerator';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -101,9 +101,9 @@ function Settings({ cuisines, setCuisines, mealsPerWeek, setMealsPerWeek, leftov
 
 // ─── Meal card ───────────────────────────────────────────────────────────────
 
-function MealCard({ meal, weekIndex, mealIndex, totalMeals, onSwap, onRate, onToggleEatingOut, onMove }) {
-  const isFirst = weekIndex === 0 && mealIndex === 0;
-  const isLast = mealIndex === totalMeals - 1;
+function MealCard({ meal, flatIndex, isLastFlat, onSwap, onRate, onToggleEatingOut, onMove, onToggleCookExtra, canCookExtra, onDelete }) {
+  const isFirst = flatIndex === 0;
+  const isLast = isLastFlat;
 
   const labelClass = {
     'Cooking': 'label-cooking',
@@ -111,16 +111,49 @@ function MealCard({ meal, weekIndex, mealIndex, totalMeals, onSwap, onRate, onTo
     'Eating out': 'label-eating-out',
   }[meal.label] || 'label-cooking';
 
+  // Unassigned leftover placeholder
+  if (meal.label === 'Leftovers' && !meal.sourceMealId) {
+    return (
+      <div className="meal-card leftover-unassigned">
+        <div className="meal-card-header">
+          <span className={`meal-label ${labelClass}`}>Leftovers</span>
+          <button className="icon-btn delete-btn" onClick={onDelete} title="Remove this night" aria-label="Delete">✕</button>
+        </div>
+        <p className="unassigned-hint">
+          Toggle "cook extra" on a cooking meal to assign this night
+        </p>
+        <div className="meal-actions">
+          <div className="action-group" style={{ marginLeft: 'auto' }}>
+            <button className="icon-btn" onClick={() => onMove('left')} disabled={isFirst} title="Move earlier" aria-label="Move left">←</button>
+            <button className="icon-btn" onClick={() => onMove('right')} disabled={isLast} title="Move later" aria-label="Move right">→</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`meal-card ${meal.label === 'Eating out' ? 'eating-out' : ''}`}>
       <div className="meal-card-header">
         <span className={`meal-label ${labelClass}`}>{meal.label}</span>
-        {meal.cuisine && (
-          <span className="meal-cuisine">{meal.cuisine}</span>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {meal.cuisine && <span className="meal-cuisine">{meal.cuisine}</span>}
+          <button className="icon-btn delete-btn" onClick={onDelete} title="Remove meal" aria-label="Delete">✕</button>
+        </div>
       </div>
 
       <p className="meal-name">{meal.name}</p>
+
+      {meal.label === 'Cooking' && (
+        <button
+          className={`cook-extra-btn ${meal.cookExtra ? 'active' : ''} ${!meal.cookExtra && !canCookExtra ? 'disabled' : ''}`}
+          onClick={onToggleCookExtra}
+          disabled={!meal.cookExtra && !canCookExtra}
+          title={meal.cookExtra ? 'Remove from leftover nights' : 'Cook extra for a leftover night'}
+        >
+          {meal.cookExtra ? '✓ Cooking extra' : '+ Cook extra for leftovers'}
+        </button>
+      )}
 
       <div className="meal-actions">
         <div className="action-group">
@@ -143,14 +176,9 @@ function MealCard({ meal, weekIndex, mealIndex, totalMeals, onSwap, onRate, onTo
         </div>
 
         <div className="action-group">
-          <button
-            className="icon-btn"
-            onClick={onSwap}
-            title="Swap this meal"
-            aria-label="Swap meal"
-          >
-            ⟳
-          </button>
+          {meal.label === 'Cooking' && (
+            <button className="icon-btn" onClick={onSwap} title="Swap this meal" aria-label="Swap meal">⟳</button>
+          )}
           <button
             className={`icon-btn eat-out-btn ${meal.label === 'Eating out' ? 'active-eat' : ''}`}
             onClick={onToggleEatingOut}
@@ -162,24 +190,8 @@ function MealCard({ meal, weekIndex, mealIndex, totalMeals, onSwap, onRate, onTo
         </div>
 
         <div className="action-group">
-          <button
-            className="icon-btn"
-            onClick={() => onMove('left')}
-            disabled={isFirst}
-            title="Move earlier"
-            aria-label="Move left"
-          >
-            ←
-          </button>
-          <button
-            className="icon-btn"
-            onClick={() => onMove('right')}
-            disabled={isLast}
-            title="Move later"
-            aria-label="Move right"
-          >
-            →
-          </button>
+          <button className="icon-btn" onClick={() => onMove('left')} disabled={isFirst} title="Move earlier" aria-label="Move left">←</button>
+          <button className="icon-btn" onClick={() => onMove('right')} disabled={isLast} title="Move later" aria-label="Move right">→</button>
         </div>
       </div>
     </div>
@@ -188,9 +200,10 @@ function MealCard({ meal, weekIndex, mealIndex, totalMeals, onSwap, onRate, onTo
 
 // ─── Week section ─────────────────────────────────────────────────────────────
 
-function WeekSection({ weekIndex, meals, allWeeks, onSwap, onRate, onToggleEatingOut, onMove, onAddRecipe }) {
+function WeekSection({ weekIndex, meals, allWeeks, onSwap, onRate, onToggleEatingOut, onMove, onAddRecipe, onToggleCookExtra, onDelete }) {
   const flatTotal = allWeeks.reduce((sum, w) => sum + w.length, 0);
   const flatOffset = allWeeks.slice(0, weekIndex).reduce((sum, w) => sum + w.length, 0);
+  const freeSlots = meals.filter(m => m.label === 'Leftovers' && !m.sourceMealId).length;
 
   return (
     <section className="week-section">
@@ -207,13 +220,15 @@ function WeekSection({ weekIndex, meals, allWeeks, onSwap, onRate, onToggleEatin
             <MealCard
               key={meal.id}
               meal={meal}
-              weekIndex={weekIndex}
-              mealIndex={mealIndex}
-              totalMeals={flatTotal}
+              flatIndex={flatIndex}
+              isLastFlat={flatIndex === flatTotal - 1}
               onSwap={() => onSwap(weekIndex, meal.id)}
               onRate={(r) => onRate(weekIndex, meal.id, r)}
               onToggleEatingOut={() => onToggleEatingOut(weekIndex, meal.id)}
               onMove={(dir) => onMove(flatIndex, dir)}
+              onToggleCookExtra={() => onToggleCookExtra(weekIndex, meal.id)}
+              canCookExtra={freeSlots > 0}
+              onDelete={() => onDelete(weekIndex, meal.id)}
             />
           );
         })}
@@ -363,11 +378,56 @@ export default function App() {
   const handleSwap = useCallback((weekIndex, mealId) => {
     setWeeks(prev => {
       const meal = prev[weekIndex].find(m => m.id === mealId);
-      if (!meal) return prev;
-      if (meal.label === 'Leftovers') return swapLeftoverMeal(prev, weekIndex, mealId);
+      if (!meal || meal.label === 'Leftovers') return prev;
       return swapCookingMeal(prev, weekIndex, mealId, cuisines);
     });
   }, [cuisines]);
+
+  const handleDelete = useCallback((weekIndex, mealId) => {
+    setWeeks(prev => prev.map((wk, wi) => {
+      if (wi !== weekIndex) return wk;
+      const meal = wk.find(m => m.id === mealId);
+      if (!meal) return wk;
+
+      if (meal.label === 'Cooking' && meal.cookExtra) {
+        // Reset the leftover slot that references this meal, then remove
+        return wk
+          .map(m => m.sourceMealId === mealId ? { ...m, sourceMealId: null, name: '', cuisine: '' } : m)
+          .filter(m => m.id !== mealId);
+      }
+      if (meal.label === 'Leftovers' && meal.sourceMealId) {
+        // Unmark cookExtra on the source cooking meal, then remove this slot
+        return wk
+          .map(m => m.id === meal.sourceMealId ? { ...m, cookExtra: false } : m)
+          .filter(m => m.id !== mealId);
+      }
+      return wk.filter(m => m.id !== mealId);
+    }));
+  }, []);
+
+  const handleToggleCookExtra = useCallback((weekIndex, mealId) => {
+    setWeeks(prev => prev.map((wk, wi) => {
+      if (wi !== weekIndex) return wk;
+      const meal = wk.find(m => m.id === mealId);
+      if (!meal || meal.label !== 'Cooking') return wk;
+
+      if (!meal.cookExtra) {
+        const slot = wk.find(m => m.label === 'Leftovers' && !m.sourceMealId);
+        if (!slot) return wk;
+        return wk.map(m => {
+          if (m.id === mealId) return { ...m, cookExtra: true };
+          if (m.id === slot.id) return { ...m, sourceMealId: mealId, name: `${meal.name} (leftovers)`, cuisine: meal.cuisine };
+          return m;
+        });
+      } else {
+        return wk.map(m => {
+          if (m.id === mealId) return { ...m, cookExtra: false };
+          if (m.sourceMealId === mealId) return { ...m, sourceMealId: null, name: '', cuisine: '' };
+          return m;
+        });
+      }
+    }));
+  }, []);
 
   const handleRate = useCallback((weekIndex, mealId, rating) => {
     setWeeks(prev => prev.map((wk, wi) =>
@@ -455,6 +515,8 @@ export default function App() {
                   onToggleEatingOut={handleToggleEatingOut}
                   onMove={handleMove}
                   onAddRecipe={(wi) => setAddRecipeModal({ weekIndex: wi })}
+                  onToggleCookExtra={handleToggleCookExtra}
+                  onDelete={handleDelete}
                 />
               ))}
             </div>
